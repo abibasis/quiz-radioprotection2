@@ -1,0 +1,317 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Quiz – Risque Radiologique (HSE)</title>
+
+<style>
+:root{
+--bg:#020617;
+--card:#0f172a;
+--txt:#f8fafc;
+--accent:#38bdf8;
+--ok:#22c55e;
+--err:#ef4444;
+}
+
+body{
+margin:0;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto;
+background:var(--bg);
+color:var(--txt);
+display:flex;
+justify-content:center;
+align-items:center;
+min-height:100vh;
+padding:10px;
+}
+
+.container{
+width:100%;
+max-width:600px;
+background:var(--card);
+padding:20px;
+border-radius:14px;
+box-shadow:0 10px 30px rgba(0,0,0,.6);
+}
+
+.hidden{display:none}
+
+input{
+width:100%;
+padding:12px;
+margin-bottom:10px;
+border-radius:6px;
+border:1px solid var(--accent);
+background:#020617;
+color:white;
+font-size:16px;
+}
+
+button{
+width:100%;
+padding:15px;
+margin-top:10px;
+font-size:18px;
+font-weight:bold;
+border:none;
+border-radius:8px;
+background:var(--accent);
+color:black;
+cursor:pointer;
+}
+
+.progress{
+height:10px;
+background:#1e293b;
+border-radius:6px;
+margin:15px 0;
+}
+
+#bar{
+height:100%;
+width:0%;
+background:linear-gradient(90deg,#22c55e,#38bdf8);
+border-radius:6px;
+transition:.3s;
+}
+
+#timer{
+text-align:right;
+font-weight:bold;
+color:#f87171;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:15px;
+}
+
+td,th{
+border:1px solid #334155;
+padding:6px;
+text-align:center;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container" id="app">
+
+<div id="login">
+<h2>Quiz – Risque Radiologique</h2>
+<p>Durée : 5 minutes</p>
+<input id="fname" placeholder="Prénom">
+<input id="lname" placeholder="Nom">
+<input id="email" placeholder="Email étudiant">
+<input id="group" placeholder="Groupe">
+<button onclick="startGame()">Commencer</button>
+</div>
+
+<div id="quiz" class="hidden">
+<div id="timer">05:00</div>
+<div class="progress"><div id="bar"></div></div>
+<h3 id="question"></h3>
+<div id="choices"></div>
+</div>
+
+<div id="result" class="hidden">
+<h2>Résultat final</h2>
+<p id="summary"></p>
+<button onclick="sendSheet()">Envoyer ma participation</button>
+
+<h3>Meilleurs scores</h3>
+<table>
+<thead>
+<tr><th>Nom</th><th>Groupe</th><th>Score</th></tr>
+</thead>
+<tbody id="leaderboard"></tbody>
+</table>
+</div>
+
+</div>
+
+<script>
+
+const SHEETDB_URL="https://sheetdb.io/api/v1/v9nyl3ygebz4w";
+const DURATION=300;
+
+let i=0;
+let score=0;
+let time=DURATION;
+let timer=null;
+
+let user={fname:"",lname:"",email:"",group:""};
+
+const timerEl=document.getElementById("timer");
+
+let questions=[
+{q:"L’atome est constitué principalement :",o:["D’un noyau et d’électrons en mouvement autour","Uniquement de protons","D’un noyau vide"],c:0},
+{q:"Le noyau atomique contient :",o:["Électrons et neutrons","Protons et neutrons","Uniquement protons"],c:1},
+{q:"Un isotope est :",o:["Même protons neutrons différents","Atome instable","Noyau sans électrons"],c:0},
+{q:"Radioactivité artificielle :",o:["Cosmique","Naturelle uranium","Réactions nucléaires provoquées"],c:2},
+{q:"Constante radioactive λ :",o:["Masse noyau","Probabilité désintégration","Dose absorbée"],c:1},
+{q:"Loi décroissance :",o:["N(t)=N0e^-λt","N(t)=N0+λt","N(t)=λ/N0"],c:0},
+{q:"Demi‑vie dépend :",o:["Température","Pression","Nature noyau"],c:2},
+{q:"Demi‑vie courte :",o:["Désintégration rapide","Stable","Activité nulle"],c:0},
+{q:"Activité radioactive :",o:["Énergie totale","Désintégrations par seconde","Masse"],c:1},
+{q:"1 Becquerel :",o:["1/min","1/h","1/s"],c:2}
+];
+
+function startGame(){
+
+user.fname=fname.value.trim();
+user.lname=lname.value.trim();
+user.email=email.value.trim();
+user.group=group.value.trim();
+
+if(!user.fname||!user.lname||!user.email||!user.group){
+alert("Veuillez remplir tous les champs");
+return;
+}
+
+questions.sort(()=>Math.random()-0.5);
+
+login.classList.add("hidden");
+quiz.classList.remove("hidden");
+
+timer=setInterval(tick,1000);
+
+showQuestion();
+}
+
+function tick(){
+
+time--;
+
+let m=Math.floor(time/60);
+let s=time%60;
+
+timerEl.textContent=`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+
+if(time<=0) endGame();
+
+}
+
+function showQuestion(){
+
+let q=questions[i];
+
+question.textContent=q.q;
+
+choices.innerHTML="";
+
+q.o.forEach((opt,idx)=>{
+
+let b=document.createElement("button");
+
+b.textContent=opt;
+
+b.onclick=()=>answer(idx);
+
+choices.appendChild(b);
+
+});
+
+bar.style.width=((i+1)/questions.length*100)+"%";
+
+}
+
+function answer(c){
+
+if(c===questions[i].c) score++;
+
+i++;
+
+if(i<questions.length) showQuestion();
+else endGame();
+
+}
+
+function endGame(){
+
+clearInterval(timer);
+
+quiz.classList.add("hidden");
+result.classList.remove("hidden");
+
+summary.textContent=`${user.fname} ${user.lname} | Groupe ${user.group} | Score ${score}/${questions.length}`;
+
+saveLocal();
+loadBoard();
+
+}
+
+function saveLocal(){
+
+let s=JSON.parse(localStorage.getItem("scores")||"[]");
+
+s.push({...user,score});
+
+s.sort((a,b)=>b.score-a.score);
+
+localStorage.setItem("scores",JSON.stringify(s.slice(0,5)));
+
+}
+
+function loadBoard(){
+
+let s=JSON.parse(localStorage.getItem("scores")||"[]");
+
+leaderboard.innerHTML=s.map(x=>
+
+`<tr><td>${x.fname} ${x.lname}</td><td>${x.group}</td><td>${x.score}</td></tr>`
+
+).join("");
+
+}
+
+async function sendSheet(){
+
+try{
+
+const checkURL=`${SHEETDB_URL}/search?email=${encodeURIComponent(user.email)}`;
+
+const r=await fetch(checkURL);
+
+const data=await r.json();
+
+if(data.length>0){
+alert("Participation déjà enregistrée");
+return;
+}
+
+await fetch(SHEETDB_URL,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+data:[{
+nom:user.lname,
+prenom:user.fname,
+email:user.email,
+groupe:user.group,
+score:score,
+date:new Date().toLocaleString()
+}]
+})
+});
+
+alert("Participation enregistrée");
+
+}catch(e){
+
+alert("Erreur réseau, essayez plus tard.");
+
+}
+
+}
+
+</script>
+
+</body>
+</html>
